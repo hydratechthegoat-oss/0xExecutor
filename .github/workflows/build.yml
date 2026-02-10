@@ -1,20 +1,31 @@
-name: Build 0xExecutor
+name: 0xExecutor Ultra Build
 on: [push]
 jobs:
   build:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Fetch ImGui & Backends
+        run: |
+          git clone --depth 1 https://github.com/ocornut/imgui.git imgui_src
+          mkdir -p imgui
+          cp imgui_src/*.cpp imgui_src/*.h imgui/
+          cp imgui_src/backends/imgui_impl_metal.* imgui/
+          cp imgui_src/backends/imgui_impl_ios.* imgui/
+
       - name: Compile 0xExecutor
         run: |
           clang++ -dynamiclib -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
           -I./imgui \
           -O3 -flto -std=c++17 \
+          -exported_symbols_list 0xExecutor.exp \
           -o 0xExecutor.dylib main.mm imgui/*.cpp \
           -framework UIKit -framework Metal -framework MetalKit -framework QuartzCore
-      - name: Upload Artifact
+
+      - name: Upload Finished Dylib
         uses: actions/upload-artifact@v4
         with:
-          name: 0x-Final-Dylib
+          name: 0xExecutor-Ultra
           path: 0xExecutor.dylib
