@@ -1,0 +1,19 @@
+name: Build 0xExecutor
+on: [push]
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile 0xExecutor
+        run: |
+          clang++ -dynamiclib -arch arm64 \
+          -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+          -O3 -flto -std=c++17 \
+          -o 0xExecutor.dylib main.mm \
+          -framework UIKit -framework Metal -framework MetalKit -framework QuartzCore
+      - name: Upload Dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: 0xExecutor-v1
+          path: 0xExecutor.dylib
