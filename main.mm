@@ -1,65 +1,61 @@
-#include <iostream>
 #include <vector>
 #include <string>
-#include <mach-o/dyld.h>
-#include "imgui.h" // The compiler will find this now thanks to the -I flag
-#include "imgui_impl_metal.h"
+#include <algorithm>
+#include "imgui.h"
 #include "offsets.hpp"
 
-// --- 0xExecutor Pro State ---
-bool show_menu = true;
-int active_tab = 0;
-char script_input[16384] = "-- 0xExecutor v1.0\nprint('System Online')";
+// --- Advanced State Management ---
+struct EditorTab { std::string name; char buffer[32768]; };
+std::vector<EditorTab> tabs = { {"Tab 1", "-- 0xPro Editor\nprint('Ready')"} };
+int active_tab_idx = 0;
+char search_query[256] = "";
 
-// --- Backend Execution ---
-void execute(const char* code) {
-    uintptr_t base = (uintptr_t)_dyld_get_image_header(0);
-    uintptr_t scheduler = *(uintptr_t*)(base + Offsets::TaskScheduler);
-    if (!scheduler) return;
+// --- Advanced Script Hub (Searchable) ---
+struct CloudScript { std::string name; std::string author; std::string code; };
+std::vector<CloudScript> scripts = {
+    {"Infinite Yield", "Edge", "loadstring(game:HttpGet('...'))()"},
+    {"Fly Hub", "Admin", "loadstring(game:HttpGet('...'))()"}
+};
 
-    uintptr_t sc = *(uintptr_t*)(scheduler + Offsets::ScriptContext);
-    uintptr_t L = *(uintptr_t*)(sc + Offsets::LuaState);
+void Render0xPro() {
+    ImGui::Begin("0xExecutor Ultra", nullptr, ImGuiWindowFlags_NoCollapse);
 
-    // Bypassing security levels
-    *(int*)(sc + Offsets::Identity) = 8;
-
-    auto r_load = (void(*)(uintptr_t, const char*))(base + Offsets::luau_load);
-    r_load(L, code);
-}
-
-// --- Main UI Render ---
-void Render0x() {
-    if (!show_menu) {
-        ImGui::SetNextWindowPos(ImVec2(20, 20));
-        if (ImGui::Begin("Toggle", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground)) {
-            if (ImGui::Button("0x", ImVec2(50, 50))) show_menu = true;
-        }
-        ImGui::End();
-        return;
+    // TOP BAR: Tab Management
+    if (ImGui::Button("+ New Tab")) {
+        tabs.push_back({"New Tab", ""});
+    }
+    ImGui::SameLine();
+    for(int i = 0; i < (int)tabs.size(); i++) {
+        if (i > 0) ImGui::SameLine();
+        if (ImGui::Selectable(tabs[i].name.c_str(), active_tab_idx == i, 0, ImVec2(80, 0))) active_tab_idx = i;
     }
 
-    ImGui::SetNextWindowSize(ImVec2(550, 380), ImGuiCond_FirstUseEver);
-    ImGui::Begin("0xExecutor Pro", &show_menu, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar);
+    ImGui::Separator();
 
-    // Sidebar
-    ImGui::BeginChild("Sidebar", ImVec2(110, 0), true);
-    if (ImGui::Button("Execute", ImVec2(95, 40))) active_tab = 0;
-    if (ImGui::Button("Cloud", ImVec2(95, 40))) active_tab = 1;
-    ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 50);
-    if (ImGui::Button("HIDE", ImVec2(95, 40))) show_menu = false;
+    // SIDEBAR: Searchable Script Hub
+    ImGui::BeginChild("Hub", ImVec2(150, 0), true);
+    ImGui::InputText("Search", search_query, sizeof(search_query));
+    ImGui::Separator();
+    
+    for (auto& s : scripts) {
+        std::string name_lower = s.name;
+        std::transform(name_lower.begin(), name_lower.end(), name_lower.begin(), ::tolower);
+        if (name_lower.find(search_query) != std::string::npos) {
+            if (ImGui::Selectable(s.name.c_str())) {
+                strncpy(tabs[active_tab_idx].buffer, s.code.c_str(), 32768);
+            }
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("By: %s", s.author.c_str());
+        }
+    }
     ImGui::EndChild();
 
     ImGui::SameLine();
 
-    // Editor Panel
+    // MAIN: Editor & Console
     ImGui::BeginGroup();
-    if (active_tab == 0) {
-        ImGui::InputTextMultiline("##editor", script_input, sizeof(script_input), ImVec2(-FLT_MIN, -55));
-        if (ImGui::Button("RUN SCRIPT", ImVec2(150, 40))) execute(script_input);
-    } else {
-        ImGui::Text("Cloud Script Hub");
-        if (ImGui::Button("Infinite Yield", ImVec2(-FLT_MIN, 40))) execute("loadstring(game:HttpGet('...'))()");
-    }
+    ImGui::InputTextMultiline("##editor", tabs[active_tab_idx].buffer, 32768, ImVec2(-FLT_MIN, -40));
+    if (ImGui::Button("EXECUTE", ImVec2(120, 30))) { /* Execution logic */ }
     ImGui::EndGroup();
+
     ImGui::End();
 }
