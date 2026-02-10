@@ -1,32 +1,35 @@
 #include <iostream>
 #include <vector>
+#include <string>
 #include <mach-o/dyld.h>
-#include "imgui.h"
+#include "imgui.h" // The compiler will find this now thanks to the -I flag
 #include "imgui_impl_metal.h"
 #include "offsets.hpp"
 
-// --- State Management ---
+// --- 0xExecutor Pro State ---
 bool show_menu = true;
-int current_tab = 0;
-char script_buffer[16384] = "-- 0xExecutor Pro Ready\nprint('Hello World')";
+int active_tab = 0;
+char script_input[16384] = "-- 0xExecutor v1.0\nprint('System Online')";
 
-// --- Security: Module Hiding ---
-void apply_stealth() {
-    // This removes the dylib from the internal 'dyld' list
-    // making it invisible to standard anti-cheat scanners.
+// --- Backend Execution ---
+void execute(const char* code) {
+    uintptr_t base = (uintptr_t)_dyld_get_image_header(0);
+    uintptr_t scheduler = *(uintptr_t*)(base + Offsets::TaskScheduler);
+    if (!scheduler) return;
+
+    uintptr_t sc = *(uintptr_t*)(scheduler + Offsets::ScriptContext);
+    uintptr_t L = *(uintptr_t*)(sc + Offsets::LuaState);
+
+    // Bypassing security levels
+    *(int*)(sc + Offsets::Identity) = 8;
+
+    auto r_load = (void(*)(uintptr_t, const char*))(base + Offsets::luau_load);
+    r_load(L, code);
 }
 
-// --- Script Hub Auto-Updater ---
-struct Script { std::string name; std::string code; };
-std::vector<Script> cloud_scripts = {
-    {"Infinite Yield", "loadstring(game:HttpGet('...'))()"},
-    {"Universal ESP", "loadstring(game:HttpGet('...'))()"}
-};
-
-// --- Main Render Loop ---
-void RenderUI() {
+// --- Main UI Render ---
+void Render0x() {
     if (!show_menu) {
-        // Floating Toggle Button
         ImGui::SetNextWindowPos(ImVec2(20, 20));
         if (ImGui::Begin("Toggle", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground)) {
             if (ImGui::Button("0x", ImVec2(50, 50))) show_menu = true;
@@ -35,25 +38,27 @@ void RenderUI() {
         return;
     }
 
-    ImGui::Begin("0xExecutor Pro", &show_menu, ImGuiWindowFlags_NoResize);
-    
-    // Sidebar Tabs
-    ImGui::BeginChild("Tabs", ImVec2(100, 0), true);
-    if (ImGui::Button("Execute", ImVec2(85, 40))) current_tab = 0;
-    if (ImGui::Button("Cloud", ImVec2(85, 40))) current_tab = 1;
+    ImGui::SetNextWindowSize(ImVec2(550, 380), ImGuiCond_FirstUseEver);
+    ImGui::Begin("0xExecutor Pro", &show_menu, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar);
+
+    // Sidebar
+    ImGui::BeginChild("Sidebar", ImVec2(110, 0), true);
+    if (ImGui::Button("Execute", ImVec2(95, 40))) active_tab = 0;
+    if (ImGui::Button("Cloud", ImVec2(95, 40))) active_tab = 1;
+    ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 50);
+    if (ImGui::Button("HIDE", ImVec2(95, 40))) show_menu = false;
     ImGui::EndChild();
-    
+
     ImGui::SameLine();
-    
-    // Main Panel
+
+    // Editor Panel
     ImGui::BeginGroup();
-    if (current_tab == 0) {
-        ImGui::InputTextMultiline("##editor", script_buffer, sizeof(script_buffer), ImVec2(-FLT_MIN, -50));
-        if (ImGui::Button("RUN", ImVec2(120, 35))) { /* Execute Logic */ }
+    if (active_tab == 0) {
+        ImGui::InputTextMultiline("##editor", script_input, sizeof(script_input), ImVec2(-FLT_MIN, -55));
+        if (ImGui::Button("RUN SCRIPT", ImVec2(150, 40))) execute(script_input);
     } else {
-        for (auto& s : cloud_scripts) {
-            if (ImGui::Button(s.name.c_str(), ImVec2(-FLT_MIN, 35))) { /* Execute s.code */ }
-        }
+        ImGui::Text("Cloud Script Hub");
+        if (ImGui::Button("Infinite Yield", ImVec2(-FLT_MIN, 40))) execute("loadstring(game:HttpGet('...'))()");
     }
     ImGui::EndGroup();
     ImGui::End();
