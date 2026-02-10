@@ -9,11 +9,12 @@ jobs:
         run: |
           clang++ -dynamiclib -arch arm64 \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+          -I./imgui \
           -O3 -flto -std=c++17 \
-          -o 0xExecutor.dylib main.mm \
+          -o 0xExecutor.dylib main.mm imgui/*.cpp \
           -framework UIKit -framework Metal -framework MetalKit -framework QuartzCore
-      - name: Upload Dylib
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: 0xExecutor-v1
+          name: 0x-Final-Dylib
           path: 0xExecutor.dylib
